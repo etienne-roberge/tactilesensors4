@@ -27,13 +27,6 @@
 #include "tactilesensors4/StaticData.h"
 #include "tactilesensors4/Dynamic.h"
 #include "tactilesensors4/Accelerometer.h"
-//#include "tactilesensors4/DynamicAndIMUData.h"
-
-//stuff to display sensors?
-#include <opencv2/opencv.hpp>
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
 
 
 //void staticdataCallback(const tactilesensors4::StaticData::ConstPtr &msg)
