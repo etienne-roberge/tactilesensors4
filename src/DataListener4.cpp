@@ -28,6 +28,22 @@
 #include "tactilesensors4/Dynamic.h"
 #include "tactilesensors4/Accelerometer.h"
 
+enum DataType
+{
+    StaticData,
+    DynamicData,
+    Accel,
+    Euler,
+    Gyro,
+    Magneto,
+    Quaternion
+};
+
+typedef std::vector<DataType> DataTypeV;
+
+void show_usage();
+DataTypeV readCmdOptions(int argc, char **argv);
+
 
 //void staticdataCallback(const tactilesensors4::StaticData::ConstPtr &msg)
 //{
@@ -129,6 +145,8 @@ void accelerometerCallback(const tactilesensors4::Accelerometer::ConstPtr &msg)
 
 int main(int argc, char **argv)
 {
+    DataTypeV dataToPrint = readCmdOptions(argc, argv);
+
     ros::init(argc, argv, "listener");
     ros::NodeHandle n;
     ros::Rate loop_rate(1000);
@@ -144,4 +162,89 @@ int main(int argc, char **argv)
     ros::spin();
 
     return 0;
+}
+
+DataTypeV readCmdOptions(int nbArg, char **argv)
+{
+    DataTypeV printDataType;
+
+    if(nbArg==1) // default value if no arg
+    {
+        printDataType.push_back(DataType::StaticData);
+    }
+    else // if argument, start parsing
+    {
+        for(int i=1; i<nbArg; ++i)
+        {
+            std::string arg = argv[i];
+            if((arg == "-h") || (arg == "--help"))
+            {
+                printDataType.clear();
+                show_usage();
+                break;
+            }
+            else if((arg == "-s") || (arg == "--static"))
+            {
+                printDataType.push_back(DataType::StaticData);
+            }
+            else if((arg == "-d") || (arg == "--dynamic"))
+            {
+                printDataType.push_back(DataType::DynamicData);
+            }
+            else if((arg == "-a") || (arg == "--accelerometer"))
+            {
+                printDataType.push_back(DataType::Accel);
+            }
+            else if((arg == "-e") || (arg == "--euler"))
+            {
+                printDataType.push_back(DataType::Euler);
+            }
+            else if((arg == "-g") || (arg == "--gyroscope"))
+            {
+                printDataType.push_back(DataType::Gyro);
+            }
+            else if((arg == "-m") || (arg == "--magnetometer"))
+            {
+                printDataType.push_back(DataType::Magneto);
+            }
+            else if((arg == "-q") || (arg == "--quaternion"))
+            {
+                printDataType.push_back(DataType::Quaternion);
+            }
+            else if((arg == "-o") || (arg == "--omg"))
+            {
+                printDataType.clear();
+                for(int type = DataType::StaticData; type!=DataType::Quaternion; type++)
+                {
+                    printDataType.push_back(static_cast<DataType>(type));
+                }
+                break;
+            }
+            else //option not valid, print --help and empty printing vector. Program will exit if vector is empty
+            {
+                printDataType.clear();
+                std::cerr << "Unrecognised option -> " << arg << std::endl;
+                show_usage();
+                break;
+            }
+        }
+    }
+
+    return printDataType;
+}
+
+void show_usage()
+{
+    std::cerr << "Usage: Datalistener4 <option(s)> \n"
+              << "Options:\n"
+              << "\t-h,--help\t\tShow this help message\n"
+              << "\t-s,--static\t\tPrint static pressure data (default)\n"
+              << "\t-d,--dynamic\t\tPrint dynamic data\n"
+              << "\t-a,--accelerometer\tPrint accelerometer data\n"
+              << "\t-e,--euler\t\tPrint print euler angles\n"
+              << "\t-g,--gyroscope\t\tPrint gyroscopes data\n"
+              << "\t-m,--magnetometer\tPrint magnetometers data\n"
+              << "\t-q,--quaternion\t\tPrint quaternions data\n"
+              << "\t-o,--omg\t\tPrint everything (will be a mess to read...)\n"
+              << std::endl;
 }
