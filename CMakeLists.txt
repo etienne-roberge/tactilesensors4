@@ -2,10 +2,15 @@ cmake_minimum_required(VERSION 2.8.3)
 project(tactilesensors4)
 
 ## Find catkin macros and libraries
-find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg message_generation cv_bridge)
+find_package(catkin REQUIRED COMPONENTS
+        roscpp
+        std_msgs
+        genmsg
+        message_generation
+        cv_bridge)
 
 ## Generate messages in the 'msg' folder
- add_message_files(
+add_message_files(
    FILES
    StaticData.msg
    Dynamic.msg
@@ -40,13 +45,6 @@ catkin_package(
 ## Install ##
 #############
 
-## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-   FILES_MATCHING PATTERN "*.h"
-   PATTERN ".svn" EXCLUDE
- )
-
 link_directories(/usr/local/lib)
 find_package(PkgConfig REQUIRED)
 include_directories(include ${catkin_INCLUDE_DIRS})
@@ -55,8 +53,15 @@ SET(CMAKE_CXX_FLAGS "-ggdb -O3 -fPIC -std=c++0x -march=native -mno-avx") #jk add
 
 add_executable(PollData4 src/PollData4.cpp src/MadgwickAHRS.cpp src/MadgwickAHRS2.cpp)
 target_link_libraries(PollData4 ${catkin_LIBRARIES})
-add_dependencies(PollData4 tactilesensors_generate_messages_cpp)
+add_dependencies(PollData4 tactilesensors4_generate_messages_cpp)
 
 add_executable(DataListener4 src/DataListener4.cpp)
-target_link_libraries(DataListener4 ${catkin_LIBRARIES} ${LIBUSB1_LIBRARIES})
-add_dependencies(DataListener4 tactilesensors_generate_messages_cpp)
+target_link_libraries(DataListener4 ${catkin_LIBRARIES})
+add_dependencies(DataListener4 tactilesensors4_generate_messages_cpp)
+
+## Mark cpp header files for installation
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+        FILES_MATCHING PATTERN "*.h"
+        PATTERN ".svn" EXCLUDE
+        )
