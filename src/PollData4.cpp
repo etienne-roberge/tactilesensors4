@@ -82,6 +82,7 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "tactilesensors4/StaticData.h"
 #include "MadgwickAHRS.h" // Quaternion calculation for 1st IMU
 #include "MadgwickAHRS2.h" // Quaternion calculation for 2nd IMU
+#include "Finger.h"
 #include <stdio.h>      // standard input / output functions
 #include <fcntl.h>      // File control definitions
 #include <termios.h>    // POSIX terminal control definitions
@@ -97,10 +98,6 @@ using namespace std;
 
 #define READ_DATA_PERIOD_MS 1
 #define FINGER_COUNT 2
-#define FINGER_STATIC_TACTILE_ROW 4
-#define FINGER_STATIC_TACTILE_COL 7
-#define FINGER_STATIC_TACTILE_COUNT (FINGER_STATIC_TACTILE_ROW * FINGER_STATIC_TACTILE_COL)
-#define FINGER_DYNAMIC_TACTILE_COUNT 1
 
 //Global Variables:
 bool IMUCalibrationMode = false;
@@ -128,17 +125,6 @@ enum UsbCommands
     USB_COMMAND_ENTER_BOOTLOADER = 0xE2
 };
 
-// Sensor types occupy the higher 4 bits, the 2 bits lower than that identify finger, and the lower 2 bits is used as an index.
-enum UsbSensorType
-{
-    USB_SENSOR_TYPE_STATIC_TACTILE = 0x10,
-    USB_SENSOR_TYPE_DYNAMIC_TACTILE = 0x20,
-    USB_SENSOR_TYPE_ACCELEROMETER = 0x30,
-    USB_SENSOR_TYPE_GYROSCOPE = 0x40,
-    USB_SENSOR_TYPE_MAGNETOMETER = 0x50,
-    USB_SENSOR_TYPE_TEMPERATURE = 0x60
-};
-
 struct UsbPacket
 {
     uint8_t start_byte;
@@ -148,20 +134,11 @@ struct UsbPacket
     uint8_t data[60];
 };
 
-struct FingerData
-{
-    uint16_t staticTactile[FINGER_STATIC_TACTILE_COUNT];
-    int16_t dynamicTactile[FINGER_DYNAMIC_TACTILE_COUNT];
-    int16_t accelerometer[3];
-    int16_t gyroscope[3];
-    int16_t magnetometer[3];
-    int16_t temperature;
-};
 
 struct Fingers
 {
     int64_t timestamp;
-    FingerData finger[FINGER_COUNT];
+    Finger finger[FINGER_COUNT];
 };
 
 //Function prototypes:
@@ -270,68 +247,69 @@ int main(int argc, char **argv)
                 if (newSetOfData)
                 {
                     // We copy the dynamic values for both sensors:
-                    SensorsData.dynamic.data[0].value=fingers.finger[0].dynamicTactile[0]; SensorsData.dynamic.data[1].value=fingers.finger[1].dynamicTactile[0];
+                    SensorsData.dynamic.data[0].value = fingers.finger[0].getDynamicTactile()[0];
+                    SensorsData.dynamic.data[1].value = fingers.finger[1].getDynamicTactile()[0];
 
                     // Then we copy static values for both sensors:
-                    memcpy(&SensorsData.staticdata.taxels[0].values,&fingers.finger[0].staticTactile,sizeof(fingers.finger[0].staticTactile));
-                    memcpy(&SensorsData.staticdata.taxels[1].values,&fingers.finger[1].staticTactile,sizeof(fingers.finger[1].staticTactile));
+                    memcpy(&SensorsData.staticdata.taxels[0].values,fingers.finger[0].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[0].values));
+                    memcpy(&SensorsData.staticdata.taxels[1].values,fingers.finger[1].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[1].values));
 
                     // Then we copy accelerometer values:
-                    memcpy(&SensorsData.accelerometer.data[0].values,&fingers.finger[0].accelerometer,sizeof(fingers.finger[0].accelerometer));
-                    memcpy(&SensorsData.accelerometer.data[1].values,&fingers.finger[1].accelerometer,sizeof(fingers.finger[1].accelerometer));
+                    memcpy(&SensorsData.accelerometer.data[0].values, fingers.finger[0].getAccelerometer(),sizeof(SensorsData.accelerometer.data[0].values));
+                    memcpy(&SensorsData.accelerometer.data[1].values, fingers.finger[1].getAccelerometer(),sizeof(SensorsData.accelerometer.data[1].values));
 
                     // Then we copy gyroscope values:
-                    memcpy(&SensorsData.gyroscope.data[0].values,&fingers.finger[0].gyroscope,sizeof(fingers.finger[0].gyroscope));
-                    memcpy(&SensorsData.gyroscope.data[1].values,&fingers.finger[1].gyroscope,sizeof(fingers.finger[1].gyroscope));
+                    memcpy(&SensorsData.gyroscope.data[0].values, fingers.finger[0].getGyroscope(),sizeof(SensorsData.gyroscope.data[0].values));
+                    memcpy(&SensorsData.gyroscope.data[1].values, fingers.finger[1].getGyroscope(),sizeof(SensorsData.gyroscope.data[1].values));
 
                     // Then we copy magnetometer values:
-                    memcpy(&SensorsData.magnetometer.data[0].values,&fingers.finger[0].magnetometer,sizeof(fingers.finger[0].magnetometer));
-                    memcpy(&SensorsData.magnetometer.data[1].values,&fingers.finger[1].magnetometer,sizeof(fingers.finger[1].magnetometer));
+                    memcpy(&SensorsData.magnetometer.data[0].values, fingers.finger[0].getMagnetometer(),sizeof(SensorsData.magnetometer.data[0].values));
+                    memcpy(&SensorsData.magnetometer.data[1].values, fingers.finger[1].getMagnetometer(),sizeof(SensorsData.magnetometer.data[1].values));
 
-
-                    // Euler angles (and quaternions) computation:
-                    if(BIASCalculationIterator>BIASCalculationIterations)
-                    {
-                        //Write the accel and gyro data to the topic Struct with the computed sensor biases
-                        ax1=fingers.finger[0].accelerometer[0]*aRes-ax1_bias;ay1=fingers.finger[0].accelerometer[1]*aRes-ay1_bias;az1=fingers.finger[0].accelerometer[2]*aRes-az1_bias;
-                        ax2=fingers.finger[1].accelerometer[0]*aRes-ax2_bias;ay2=fingers.finger[1].accelerometer[1]*aRes-ay2_bias;az2=fingers.finger[1].accelerometer[2]*aRes-az2_bias;
-                        gx1=fingers.finger[0].gyroscope[0]*gRes-gx1_bias;gy1=fingers.finger[0].gyroscope[1]*gRes-gy1_bias;gz1=fingers.finger[0].gyroscope[2]*gRes-gz1_bias;
-                        gx2=fingers.finger[1].gyroscope[0]*gRes-gx2_bias;gy2=fingers.finger[1].gyroscope[1]*gRes-gy2_bias;gz2=fingers.finger[1].gyroscope[2]*gRes-gz2_bias;
-
-                        MadgwickAHRSupdateIMU(gx1*M_PI/180,gy1*M_PI/180,gz1*M_PI/180,ax1,ay1,az1); // 6-axis IMU
-                        MadgwickAHRSupdateIMU2(gx2*M_PI/180,gy2*M_PI/180,gz2*M_PI/180,ax2,ay2,az2); // 6-axis IMU
-
-                        TheQuaternions.data[0].values[0]=q0;TheQuaternions.data[0].values[1]=q1;TheQuaternions.data[0].values[2]=q2;TheQuaternions.data[0].values[3]=q3;
-                        TheQuaternions.data[1].values[0]=q0new;TheQuaternions.data[1].values[1]=q1new;TheQuaternions.data[1].values[2]=q2new;TheQuaternions.data[1].values[3]=q3new;
-
-                        SensorsData.eulerangle.data[0].values[0]=atan2(2.0f*(q0*q1+q2*q3),q0*q0-q1*q1-q2*q2+q3*q3)*180/M_PI;
-                        SensorsData.eulerangle.data[0].values[1]=-asin(2.0f*(q1*q3-q0*q2))*180/M_PI;
-                        SensorsData.eulerangle.data[0].values[2]=atan2(2.0f*(q1*q2+q0*q3),q0*q0+q1*q1-q2*q2-q3*q3)*180/M_PI;
-
-                        SensorsData.eulerangle.data[1].values[0]=atan2(2.0f*(q0new*q1new+q2new*q3new),q0new*q0new-q1new*q1new-q2new*q2new+q3new*q3new)*180/M_PI;
-                        SensorsData.eulerangle.data[1].values[1]=-asin(2.0f*(q1new*q3new-q0new*q2new))*180/M_PI;
-                        SensorsData.eulerangle.data[1].values[2]=atan2(2.0f*(q1new*q2new+q0new*q3new),q0new*q0new+q1new*q1new-q2new*q2new-q3new*q3new)*180/M_PI;
-                    }
-                    else if (BIASCalculationIterator==BIASCalculationIterations)
-                    {
-                        gx1_bias/=BIASCalculationIterations;gy1_bias/=BIASCalculationIterations;gz1_bias/=BIASCalculationIterations;
-                        gx2_bias/=BIASCalculationIterations;gy2_bias/=BIASCalculationIterations;gz2_bias/=BIASCalculationIterations;
-                        ax1_bias/=BIASCalculationIterations;ay1_bias/=BIASCalculationIterations;az1_bias/=BIASCalculationIterations;
-                        ax2_bias/=BIASCalculationIterations;ay2_bias/=BIASCalculationIterations;az2_bias/=BIASCalculationIterations;
-                        norm_bias1=sqrtf(pow(ax1_bias,2)+pow(ay1_bias,2)+pow(az1_bias,2))-1;
-                        norm_bias2=sqrtf(pow(ax2_bias,2)+pow(ay2_bias,2)+pow(az2_bias,2))-1;
-                        ax1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);ay1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);az1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);
-                        ax2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);ay2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);az2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);
-                        BIASCalculationIterator++;
-                    }
-                    else if (BIASCalculationIterator<BIASCalculationIterations)
-                    {
-                        gx1_bias+=fingers.finger[0].gyroscope[0]*gRes;gy1_bias+=fingers.finger[0].gyroscope[1]*gRes;gz1_bias+=fingers.finger[0].gyroscope[2]*gRes;
-                        gx2_bias+=fingers.finger[1].gyroscope[0]*gRes;gy2_bias+=fingers.finger[1].gyroscope[1]*gRes;gz2_bias+=fingers.finger[1].gyroscope[2]*gRes;
-                        ax1_bias+=fingers.finger[0].accelerometer[0]*aRes;ay1_bias+=fingers.finger[0].accelerometer[1]*aRes;az1_bias+=fingers.finger[0].accelerometer[2]*aRes;
-                        ax2_bias+=fingers.finger[1].accelerometer[0]*aRes;ay2_bias+=fingers.finger[1].accelerometer[1]*aRes;az2_bias+=fingers.finger[1].accelerometer[2]*aRes;
-                        BIASCalculationIterator++;
-                    }
+//
+//                    // Euler angles (and quaternions) computation:
+//                    if(BIASCalculationIterator>BIASCalculationIterations)
+//                    {
+//                        //Write the accel and gyro data to the topic Struct with the computed sensor biases
+//                        ax1=fingers.finger[0].accelerometer[0]*aRes-ax1_bias;ay1=fingers.finger[0].accelerometer[1]*aRes-ay1_bias;az1=fingers.finger[0].accelerometer[2]*aRes-az1_bias;
+//                        ax2=fingers.finger[1].accelerometer[0]*aRes-ax2_bias;ay2=fingers.finger[1].accelerometer[1]*aRes-ay2_bias;az2=fingers.finger[1].accelerometer[2]*aRes-az2_bias;
+//                        gx1=fingers.finger[0].gyroscope[0]*gRes-gx1_bias;gy1=fingers.finger[0].gyroscope[1]*gRes-gy1_bias;gz1=fingers.finger[0].gyroscope[2]*gRes-gz1_bias;
+//                        gx2=fingers.finger[1].gyroscope[0]*gRes-gx2_bias;gy2=fingers.finger[1].gyroscope[1]*gRes-gy2_bias;gz2=fingers.finger[1].gyroscope[2]*gRes-gz2_bias;
+//
+//                        MadgwickAHRSupdateIMU(gx1*M_PI/180,gy1*M_PI/180,gz1*M_PI/180,ax1,ay1,az1); // 6-axis IMU
+//                        MadgwickAHRSupdateIMU2(gx2*M_PI/180,gy2*M_PI/180,gz2*M_PI/180,ax2,ay2,az2); // 6-axis IMU
+//
+//                        TheQuaternions.data[0].values[0]=q0;TheQuaternions.data[0].values[1]=q1;TheQuaternions.data[0].values[2]=q2;TheQuaternions.data[0].values[3]=q3;
+//                        TheQuaternions.data[1].values[0]=q0new;TheQuaternions.data[1].values[1]=q1new;TheQuaternions.data[1].values[2]=q2new;TheQuaternions.data[1].values[3]=q3new;
+//
+//                        SensorsData.eulerangle.data[0].values[0]=atan2(2.0f*(q0*q1+q2*q3),q0*q0-q1*q1-q2*q2+q3*q3)*180/M_PI;
+//                        SensorsData.eulerangle.data[0].values[1]=-asin(2.0f*(q1*q3-q0*q2))*180/M_PI;
+//                        SensorsData.eulerangle.data[0].values[2]=atan2(2.0f*(q1*q2+q0*q3),q0*q0+q1*q1-q2*q2-q3*q3)*180/M_PI;
+//
+//                        SensorsData.eulerangle.data[1].values[0]=atan2(2.0f*(q0new*q1new+q2new*q3new),q0new*q0new-q1new*q1new-q2new*q2new+q3new*q3new)*180/M_PI;
+//                        SensorsData.eulerangle.data[1].values[1]=-asin(2.0f*(q1new*q3new-q0new*q2new))*180/M_PI;
+//                        SensorsData.eulerangle.data[1].values[2]=atan2(2.0f*(q1new*q2new+q0new*q3new),q0new*q0new+q1new*q1new-q2new*q2new-q3new*q3new)*180/M_PI;
+//                    }
+//                    else if (BIASCalculationIterator==BIASCalculationIterations)
+//                    {
+//                        gx1_bias/=BIASCalculationIterations;gy1_bias/=BIASCalculationIterations;gz1_bias/=BIASCalculationIterations;
+//                        gx2_bias/=BIASCalculationIterations;gy2_bias/=BIASCalculationIterations;gz2_bias/=BIASCalculationIterations;
+//                        ax1_bias/=BIASCalculationIterations;ay1_bias/=BIASCalculationIterations;az1_bias/=BIASCalculationIterations;
+//                        ax2_bias/=BIASCalculationIterations;ay2_bias/=BIASCalculationIterations;az2_bias/=BIASCalculationIterations;
+//                        norm_bias1=sqrtf(pow(ax1_bias,2)+pow(ay1_bias,2)+pow(az1_bias,2))-1;
+//                        norm_bias2=sqrtf(pow(ax2_bias,2)+pow(ay2_bias,2)+pow(az2_bias,2))-1;
+//                        ax1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);ay1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);az1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);
+//                        ax2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);ay2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);az2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);
+//                        BIASCalculationIterator++;
+//                    }
+//                    else if (BIASCalculationIterator<BIASCalculationIterations)
+//                    {
+//                        gx1_bias+=fingers.finger[0].gyroscope[0]*gRes;gy1_bias+=fingers.finger[0].gyroscope[1]*gRes;gz1_bias+=fingers.finger[0].gyroscope[2]*gRes;
+//                        gx2_bias+=fingers.finger[1].gyroscope[0]*gRes;gy2_bias+=fingers.finger[1].gyroscope[1]*gRes;gz2_bias+=fingers.finger[1].gyroscope[2]*gRes;
+//                        ax1_bias+=fingers.finger[0].accelerometer[0]*aRes;ay1_bias+=fingers.finger[0].accelerometer[1]*aRes;az1_bias+=fingers.finger[0].accelerometer[2]*aRes;
+//                        ax2_bias+=fingers.finger[1].accelerometer[0]*aRes;ay2_bias+=fingers.finger[1].accelerometer[1]*aRes;az2_bias+=fingers.finger[1].accelerometer[2]*aRes;
+//                        BIASCalculationIterator++;
+//                    }
 
                     if (!StopSensorDataAcquisition)
                     {
@@ -515,40 +493,23 @@ static bool usbReadByte(UsbPacket *packet, unsigned int *readSoFar, uint8_t d)
 static bool parseSensors(UsbPacket *packet, Fingers *fingers, tactilesensors4::Sensor *SensorsData)
 {
     bool sawDynamic = false;
-    for (unsigned int i = 0; i < packet->data_length;)
+    bool errorFlag = false;
+    for (int i = 0; i < packet->data_length;)
     {
         uint8_t sensorType = packet->data[i] & 0xF0;
-        uint8_t f= packet->data[i] >> 2 & 0x03;
+        uint8_t f = packet->data[i] >> 2 & 0x03;
         ++i;
 
         uint8_t *sensorData = packet->data + i;
         unsigned int sensorDataBytes = packet->data_length - i;
 
-        switch (sensorType)
-        {
-        case USB_SENSOR_TYPE_DYNAMIC_TACTILE:
-            i += extractUint16((uint16_t *)fingers->finger[f].dynamicTactile, FINGER_DYNAMIC_TACTILE_COUNT, sensorData, sensorDataBytes);
+        i += fingers->finger[f].setNewSensorValue(sensorType, sensorData, sensorDataBytes, &errorFlag);
+
+        if(errorFlag)
+            break;
+
+        if(sensorType == USB_SENSOR_TYPE_DYNAMIC_TACTILE)
             sawDynamic = true;
-            break;
-        case USB_SENSOR_TYPE_STATIC_TACTILE:
-            i += extractUint16(fingers->finger[f].staticTactile, FINGER_STATIC_TACTILE_COUNT, sensorData, sensorDataBytes);
-            break;
-        case USB_SENSOR_TYPE_ACCELEROMETER:
-            i += extractUint16((uint16_t *)fingers->finger[f].accelerometer, 3, sensorData, sensorDataBytes);
-            break;
-        case USB_SENSOR_TYPE_GYROSCOPE:
-            i += extractUint16((uint16_t *)fingers->finger[f].gyroscope, 3, sensorData, sensorDataBytes);
-            break;
-        case USB_SENSOR_TYPE_MAGNETOMETER:
-            i += extractUint16((uint16_t *)fingers->finger[f].magnetometer, 3, sensorData, sensorDataBytes);
-            break;
-        case USB_SENSOR_TYPE_TEMPERATURE:
-            i += extractUint16((uint16_t *)&fingers->finger[f].temperature, 1, sensorData, sensorDataBytes);
-            break;
-        default:
-            // Unknown sensor, we can't continue parsing anything from here on
-            return sawDynamic;
-        }
     }
 
     /*
@@ -556,21 +517,4 @@ static bool parseSensors(UsbPacket *packet, Fingers *fingers, tactilesensors4::S
      * arrived and needs to be processed.
      */
     return sawDynamic;
-}
-
-static inline uint16_t parseBigEndian2(uint8_t *data)
-{
-    return (uint16_t)data[0] << 8 | data[1];
-}
-
-static uint8_t extractUint16(uint16_t *to, uint16_t toCount, uint8_t *data, unsigned int size)
-{
-    unsigned int cur;
-
-    // Extract 16-bit values.  If not enough data, extract as much data as available
-    for (cur = 0; 2 * cur + 1 < size && cur < toCount; ++cur)
-        to[cur] = parseBigEndian2(&data[2 * cur]);
-
-    // Return number of bytes read
-    return cur * 2;
 }
