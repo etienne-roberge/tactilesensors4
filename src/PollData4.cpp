@@ -418,15 +418,7 @@ bool OpenAndConfigurePort(int *USB, char const * TheDevice)
     cfsetispeed (&tty, (speed_t)B115200);
 
     /* Setting other Port Stuff */
-    tty.c_cflag     &=  ~PARENB;            // Make 8n1
-    tty.c_cflag     &=  ~CSTOPB;
-    tty.c_cflag     &=  ~CSIZE;
-    tty.c_lflag     &=  ~ICANON;            // Remove canonical mode
-    tty.c_cflag     |=  CS8;
-    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
-    tty.c_cc[VMIN]   =  0;        // read doesn't block
-    tty.c_cc[VTIME]  =  0;       // 0.0 seconds read timeout between each byte max
-    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
+    cfmakeraw(&tty);
 
     /* Flush Port, then applies attributes */
     tcflush( (*USB), TCIFLUSH );
