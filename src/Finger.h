@@ -29,6 +29,7 @@ public:
     Finger();
     virtual ~Finger();
 
+    void update();
     int setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag);
 
     const uint16_t *getStaticTactile() const;
@@ -36,18 +37,38 @@ public:
     const int16_t *getAccelerometer() const;
     const int16_t *getGyroscope() const;
     const int16_t *getMagnetometer() const;
+    const float *getQuaternion() const;
+    const float *getEuler() const;
     int16_t getTemperature() const;
 
 private:
+    void updateIMU();
+    void initBias();
+    void madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
+
     static uint8_t extractUint16(uint16_t *to, uint16_t toCount, uint8_t *data, unsigned int size);
     static inline uint16_t parseBigEndian2(uint8_t *data);
+    static float invSqrt(float x);
 
-    uint16_t staticTactile[FINGER_STATIC_TACTILE_COUNT];
-    int16_t dynamicTactile[FINGER_DYNAMIC_TACTILE_COUNT];
-    int16_t accelerometer[3];
-    int16_t gyroscope[3];
-    int16_t magnetometer[3];
+    uint16_t staticTactile[FINGER_STATIC_TACTILE_COUNT] = {};
+    int16_t dynamicTactile[FINGER_DYNAMIC_TACTILE_COUNT] = {};
+    int16_t accel[3] = {};
+    float accelBias[3] = {};
+    int16_t gyro[3] = {};
+    float gyroBias[3] = {};
+    int16_t magnet[3] = {};
     int16_t temperature;
+    float q[4] = {};
+    float euler[3] = {};
+    bool initDone;
+    int biasCalculationIteration;
+    float norm_bias;
+
+    static const float BETA;
+    static const float SAMPLE_FREQ;
+    static const int BIAS_CALCULATION_ITERATIONS; // Number of samples we want to collect to compute IMU biases
+    static const float ACCEL_RES;
+    static const float GYRO_RES;
 };
 
 

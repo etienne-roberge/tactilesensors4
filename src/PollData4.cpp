@@ -254,62 +254,24 @@ int main(int argc, char **argv)
                     memcpy(&SensorsData.staticdata.taxels[0].values,fingers.finger[0].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[0].values));
                     memcpy(&SensorsData.staticdata.taxels[1].values,fingers.finger[1].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[1].values));
 
-                    // Then we copy accelerometer values:
+                    // Then we copy accel values:
                     memcpy(&SensorsData.accelerometer.data[0].values, fingers.finger[0].getAccelerometer(),sizeof(SensorsData.accelerometer.data[0].values));
                     memcpy(&SensorsData.accelerometer.data[1].values, fingers.finger[1].getAccelerometer(),sizeof(SensorsData.accelerometer.data[1].values));
 
-                    // Then we copy gyroscope values:
+                    // Then we copy gyro values:
                     memcpy(&SensorsData.gyroscope.data[0].values, fingers.finger[0].getGyroscope(),sizeof(SensorsData.gyroscope.data[0].values));
                     memcpy(&SensorsData.gyroscope.data[1].values, fingers.finger[1].getGyroscope(),sizeof(SensorsData.gyroscope.data[1].values));
 
-                    // Then we copy magnetometer values:
+                    // Then we copy magnet values:
                     memcpy(&SensorsData.magnetometer.data[0].values, fingers.finger[0].getMagnetometer(),sizeof(SensorsData.magnetometer.data[0].values));
                     memcpy(&SensorsData.magnetometer.data[1].values, fingers.finger[1].getMagnetometer(),sizeof(SensorsData.magnetometer.data[1].values));
 
-//
-//                    // Euler angles (and quaternions) computation:
-//                    if(BIASCalculationIterator>BIASCalculationIterations)
-//                    {
-//                        //Write the accel and gyro data to the topic Struct with the computed sensor biases
-//                        ax1=fingers.finger[0].accelerometer[0]*aRes-ax1_bias;ay1=fingers.finger[0].accelerometer[1]*aRes-ay1_bias;az1=fingers.finger[0].accelerometer[2]*aRes-az1_bias;
-//                        ax2=fingers.finger[1].accelerometer[0]*aRes-ax2_bias;ay2=fingers.finger[1].accelerometer[1]*aRes-ay2_bias;az2=fingers.finger[1].accelerometer[2]*aRes-az2_bias;
-//                        gx1=fingers.finger[0].gyroscope[0]*gRes-gx1_bias;gy1=fingers.finger[0].gyroscope[1]*gRes-gy1_bias;gz1=fingers.finger[0].gyroscope[2]*gRes-gz1_bias;
-//                        gx2=fingers.finger[1].gyroscope[0]*gRes-gx2_bias;gy2=fingers.finger[1].gyroscope[1]*gRes-gy2_bias;gz2=fingers.finger[1].gyroscope[2]*gRes-gz2_bias;
-//
-//                        MadgwickAHRSupdateIMU(gx1*M_PI/180,gy1*M_PI/180,gz1*M_PI/180,ax1,ay1,az1); // 6-axis IMU
-//                        MadgwickAHRSupdateIMU2(gx2*M_PI/180,gy2*M_PI/180,gz2*M_PI/180,ax2,ay2,az2); // 6-axis IMU
-//
-//                        TheQuaternions.data[0].values[0]=q0;TheQuaternions.data[0].values[1]=q1;TheQuaternions.data[0].values[2]=q2;TheQuaternions.data[0].values[3]=q3;
-//                        TheQuaternions.data[1].values[0]=q0new;TheQuaternions.data[1].values[1]=q1new;TheQuaternions.data[1].values[2]=q2new;TheQuaternions.data[1].values[3]=q3new;
-//
-//                        SensorsData.eulerangle.data[0].values[0]=atan2(2.0f*(q0*q1+q2*q3),q0*q0-q1*q1-q2*q2+q3*q3)*180/M_PI;
-//                        SensorsData.eulerangle.data[0].values[1]=-asin(2.0f*(q1*q3-q0*q2))*180/M_PI;
-//                        SensorsData.eulerangle.data[0].values[2]=atan2(2.0f*(q1*q2+q0*q3),q0*q0+q1*q1-q2*q2-q3*q3)*180/M_PI;
-//
-//                        SensorsData.eulerangle.data[1].values[0]=atan2(2.0f*(q0new*q1new+q2new*q3new),q0new*q0new-q1new*q1new-q2new*q2new+q3new*q3new)*180/M_PI;
-//                        SensorsData.eulerangle.data[1].values[1]=-asin(2.0f*(q1new*q3new-q0new*q2new))*180/M_PI;
-//                        SensorsData.eulerangle.data[1].values[2]=atan2(2.0f*(q1new*q2new+q0new*q3new),q0new*q0new+q1new*q1new-q2new*q2new-q3new*q3new)*180/M_PI;
-//                    }
-//                    else if (BIASCalculationIterator==BIASCalculationIterations)
-//                    {
-//                        gx1_bias/=BIASCalculationIterations;gy1_bias/=BIASCalculationIterations;gz1_bias/=BIASCalculationIterations;
-//                        gx2_bias/=BIASCalculationIterations;gy2_bias/=BIASCalculationIterations;gz2_bias/=BIASCalculationIterations;
-//                        ax1_bias/=BIASCalculationIterations;ay1_bias/=BIASCalculationIterations;az1_bias/=BIASCalculationIterations;
-//                        ax2_bias/=BIASCalculationIterations;ay2_bias/=BIASCalculationIterations;az2_bias/=BIASCalculationIterations;
-//                        norm_bias1=sqrtf(pow(ax1_bias,2)+pow(ay1_bias,2)+pow(az1_bias,2))-1;
-//                        norm_bias2=sqrtf(pow(ax2_bias,2)+pow(ay2_bias,2)+pow(az2_bias,2))-1;
-//                        ax1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);ay1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);az1_bias*=norm_bias1/(ax1_bias+ay1_bias+az1_bias);
-//                        ax2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);ay2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);az2_bias*=norm_bias2/(ax2_bias+ay2_bias+az2_bias);
-//                        BIASCalculationIterator++;
-//                    }
-//                    else if (BIASCalculationIterator<BIASCalculationIterations)
-//                    {
-//                        gx1_bias+=fingers.finger[0].gyroscope[0]*gRes;gy1_bias+=fingers.finger[0].gyroscope[1]*gRes;gz1_bias+=fingers.finger[0].gyroscope[2]*gRes;
-//                        gx2_bias+=fingers.finger[1].gyroscope[0]*gRes;gy2_bias+=fingers.finger[1].gyroscope[1]*gRes;gz2_bias+=fingers.finger[1].gyroscope[2]*gRes;
-//                        ax1_bias+=fingers.finger[0].accelerometer[0]*aRes;ay1_bias+=fingers.finger[0].accelerometer[1]*aRes;az1_bias+=fingers.finger[0].accelerometer[2]*aRes;
-//                        ax2_bias+=fingers.finger[1].accelerometer[0]*aRes;ay2_bias+=fingers.finger[1].accelerometer[1]*aRes;az2_bias+=fingers.finger[1].accelerometer[2]*aRes;
-//                        BIASCalculationIterator++;
-//                    }
+                    fingers.finger[0].update();
+                    fingers.finger[1].update();
+
+                    // Then we copy magnet values:
+                    memcpy(&SensorsData.eulerangle.data[0].values, fingers.finger[0].getEuler(),sizeof(SensorsData.eulerangle.data[0].values));
+                    memcpy(&SensorsData.eulerangle.data[1].values, fingers.finger[1].getEuler(),sizeof(SensorsData.eulerangle.data[1].values));
 
                     if (!StopSensorDataAcquisition)
                     {
@@ -319,10 +281,7 @@ int main(int argc, char **argv)
                         Accelerometer_pub.publish(SensorsData.accelerometer);
                         Gyroscope_pub.publish(SensorsData.gyroscope);
                         Magnetometer_pub.publish(SensorsData.magnetometer);
-
-                        // If we had the time to compute the IMU biases, then we can publish the Euler angles:
-                        if (BIASCalculationIterator>BIASCalculationIterations)
-                            EulerAngle_pub.publish(SensorsData.eulerangle);
+                        EulerAngle_pub.publish(SensorsData.eulerangle);
                     }
                 }
             }

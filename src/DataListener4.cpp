@@ -99,8 +99,8 @@ DataTypeV readCmdOptions(int argc, char **argv);
 
 void accelerometerCallback(const tactilesensors4::Accelerometer::ConstPtr &msg)
 {
-    ROS_INFO("We have received accelerometer data from sensor #1: ax=[%i], ay=[%i] and az=[%i]", msg->data[0].values[0], msg->data[0].values[1], msg->data[0].values[2]);
-//    ROS_INFO("We have received accelerometer data from sensor #2: ax=[%i], ay=[%i] and az=[%i]", msg->data[1].values[0], msg->data[1].values[1], msg->data[1].values[2]);
+    ROS_INFO("We have received accel data from sensor #1: ax=[%i], ay=[%i] and az=[%i]", msg->data[0].values[0], msg->data[0].values[1], msg->data[0].values[2]);
+//    ROS_INFO("We have received accel data from sensor #2: ax=[%i], ay=[%i] and az=[%i]", msg->data[1].values[0], msg->data[1].values[1], msg->data[1].values[2]);
 }
 
 /*
@@ -191,7 +191,7 @@ DataTypeV readCmdOptions(int nbArg, char **argv)
             {
                 printDataType.push_back(DataType::DynamicData);
             }
-            else if((arg == "-a") || (arg == "--accelerometer"))
+            else if((arg == "-a") || (arg == "--accel"))
             {
                 printDataType.push_back(DataType::Accel);
             }
@@ -199,15 +199,15 @@ DataTypeV readCmdOptions(int nbArg, char **argv)
             {
                 printDataType.push_back(DataType::Euler);
             }
-            else if((arg == "-g") || (arg == "--gyroscope"))
+            else if((arg == "-g") || (arg == "--gyro"))
             {
                 printDataType.push_back(DataType::Gyro);
             }
-            else if((arg == "-m") || (arg == "--magnetometer"))
+            else if((arg == "-m") || (arg == "--magnet"))
             {
                 printDataType.push_back(DataType::Magneto);
             }
-            else if((arg == "-q") || (arg == "--quaternion"))
+            else if((arg == "-q") || (arg == "--quat"))
             {
                 printDataType.push_back(DataType::Quaternion);
             }
@@ -240,11 +240,11 @@ void show_usage()
               << "\t-h,--help\t\tShow this help message\n"
               << "\t-s,--static\t\tPrint static pressure data (default)\n"
               << "\t-d,--dynamic\t\tPrint dynamic data\n"
-              << "\t-a,--accelerometer\tPrint accelerometer data\n"
+              << "\t-a,--accel\tPrint accel data\n"
               << "\t-e,--euler\t\tPrint print euler angles\n"
-              << "\t-g,--gyroscope\t\tPrint gyroscopes data\n"
-              << "\t-m,--magnetometer\tPrint magnetometers data\n"
-              << "\t-q,--quaternion\t\tPrint quaternions data\n"
+              << "\t-g,--gyro\t\tPrint gyroscopes data\n"
+              << "\t-m,--magnet\tPrint magnetometers data\n"
+              << "\t-q,--quat\t\tPrint quaternions data\n"
               << "\t-o,--omg\t\tPrint everything (will be a mess to read...)\n"
               << std::endl;
 }
