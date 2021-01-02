@@ -80,8 +80,6 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "tactilesensors4/Magnetometer.h"
 #include "tactilesensors4/Quaternion.h"
 #include "tactilesensors4/StaticData.h"
-#include "MadgwickAHRS.h" // Quaternion calculation for 1st IMU
-#include "MadgwickAHRS2.h" // Quaternion calculation for 2nd IMU
 #include "Finger.h"
 #include <stdio.h>      // standard input / output functions
 #include <fcntl.h>      // File control definitions
