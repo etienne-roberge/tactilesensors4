@@ -69,7 +69,7 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 //                                  before.
 ******************************************************************************************/
 
-#include <stdint.h>
+#include <cstdint>
 #include "ros/ros.h"
 #include "tactilesensors4/TactileSensors.h"
 #include "tactilesensors4/Sensor.h"
@@ -81,15 +81,11 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "tactilesensors4/Quaternion.h"
 #include "tactilesensors4/StaticData.h"
 #include "Finger.h"
-#include <stdio.h>      // standard input / output functions
 #include <fcntl.h>      // File control definitions
 #include <termios.h>    // POSIX terminal control definitions
 #include <algorithm>
 #include <tf/transform_datatypes.h>
 #include <unistd.h>
-#include <sys/time.h>
-#include <math.h>
-#include <cmath>
 
 //Using std namespace
 using namespace std;
@@ -98,18 +94,7 @@ using namespace std;
 #define FINGER_COUNT 2
 
 //Global Variables:
-bool IMUCalibrationMode = false;
 bool StopSensorDataAcquisition=false;
-bool ModeHasChanged=true;
-//struct timespec th, stop;
-double EllapsedMicroSeconds;
-//IMU Biases:
-const int BIASCalculationIterations=5000; // Number of samples we want to collect to compute IMU biases
-int BIASCalculationIterator=0;
-float norm_bias1=0,norm_bias2=0;
-float ax1_bias=0,ay1_bias=0,az1_bias=0,ax2_bias=0,ay2_bias=0,az2_bias=0;
-float gx1_bias=0,gy1_bias=0,gz1_bias=0,gx2_bias=0,gy2_bias=0,gz2_bias=0;
-float mx1_bias=0,my1_bias=0,mz1_bias=0,mx2_bias=0,my2_bias=0,mz2_bias=0; // For future implementation (magnetometers are not currently acquired)
 
 enum UsbPacketSpecial
 {
@@ -143,38 +128,33 @@ struct Fingers
 bool cmdOptionExists(char** begin, char** end, const string& option);
 char* getCmdOption(char ** begin, char ** end, const string & option);
 bool OpenAndConfigurePort(int *USB, char const *TheDevice);
-static void usbSend(int *USB, UsbPacket *packet);
+static void usbSend(const int *USB, UsbPacket *packet);
 static uint8_t calcCrc8(uint8_t *data, size_t len);
 static bool usbReadByte(UsbPacket *packet, unsigned int *readSoFar, uint8_t d);
-static bool parseSensors(UsbPacket *packet, Fingers *fingers, tactilesensors4::Sensor *SensorsData);
-static inline uint16_t parseBigEndian2(uint8_t *data);
-static uint8_t extractUint16(uint16_t *to, uint16_t toCount, uint8_t *data, unsigned int size);
-
+static bool parseSensors(UsbPacket *packet, Fingers *fingers);
 
 //Callbacks:
 bool TactileSensorServiceCallback(tactilesensors4::TactileSensors::Request  &req, tactilesensors4::TactileSensors::Response &res)
 {
     ROS_INFO("The Tactile Sensors Service has received a request: [%s]",req.Request.data());
-    ModeHasChanged=true;
     if(strcmp(req.Request.data(),"start")==0 || strcmp(req.Request.data(),"Start")==0)
     {
         StopSensorDataAcquisition=false;
         res.Response=true;
-        return 1;
+        return true;
     }
     else if(strcmp(req.Request.data(),"stop")==0 || strcmp(req.Request.data(),"Stop")==0)
     {
         StopSensorDataAcquisition=true;
         res.Response=true;
-        return 1;
+        return true;
     }
     else
     {
         ROS_WARN("The Tactile Sensor service has received an invalid request.");
         res.Response=false;
-        return 0;
+        return false;
     }
-    return true;
 }
 
 //Main
@@ -198,15 +178,9 @@ int main(int argc, char **argv)
 
     int USB, n_read;
     char const * TheDevice = "/dev/ttyACM0"; // By default, the device descriptor is set to "/dev/ttyACM0"
-    UsbPacket send, recv;
+    UsbPacket send{}, recv{};
     unsigned int recvSoFar=0;
     std::vector<char> receiveBuffer(4096);
-    tf::Quaternion q_1, q_2;
-    tf::Matrix3x3 m1, m2;
-    float ax1, ay1, az1, gx1, gy1, gz1, ax2, ay2, az2, gx2, gy2, gz2;
-    const float aRes = 2.0/32768.0; // Accelerometers MPU9250 set resolution
-    const float gRes = 250.0/32768.0; //Gyroscope set resolution (250 Degrees-Per-Second)
-
 
     if(cmdOptionExists(argv, argv+argc, "-device"))
     {
@@ -239,7 +213,7 @@ int main(int argc, char **argv)
         {
             if (usbReadByte(&recv, &recvSoFar, receiveBuffer[i]))
             {
-                bool newSetOfData = parseSensors(&recv, &fingers, &SensorsData);
+                bool newSetOfData = parseSensors(&recv, &fingers);
 
                 // Many messages can arrive in the same millisecond, so let the data accumulate and store it only when a whole set is complete
                 if (newSetOfData)
@@ -285,6 +259,7 @@ int main(int argc, char **argv)
             }
         }
         ros::spinOnce();    //Refresh publishing buffers
+        loop_rate.sleep();
     }
 
     // Stop auto-send message
@@ -325,7 +300,7 @@ char* getCmdOption(char ** begin, char ** end, const string & option)
     {
         return *itr;
     }
-    return 0;
+    return nullptr;
 }
 
 /****************************************************************************************
@@ -363,7 +338,7 @@ bool OpenAndConfigurePort(int *USB, char const * TheDevice)
     }
 
     /**** Configure Port ****/
-    struct termios tty;
+    struct termios tty{};
     memset(&tty, 0, sizeof tty);
     if ( tcgetattr ( (*USB), &tty ) != 0 ) {
         cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << endl;
@@ -386,9 +361,9 @@ bool OpenAndConfigurePort(int *USB, char const * TheDevice)
     return true;
 }
 
-static void usbSend(int *USB, UsbPacket *packet)
+static void usbSend(const int *USB, UsbPacket *packet)
 {
-    uint8_t *p = (uint8_t *)packet;
+    auto *p = (uint8_t *)packet;
     int n_written;
 
     packet->start_byte = USB_PACKET_START_BYTE;
@@ -405,7 +380,7 @@ static uint8_t calcCrc8(uint8_t *data, size_t len)
 
 static bool usbReadByte(UsbPacket *packet, unsigned int *readSoFar, uint8_t d)
 {
-    uint8_t *p = (uint8_t *)packet;
+    auto *p = (uint8_t *)packet;
 
     // Make sure start byte is seen
     if (*readSoFar == 0 && d != USB_PACKET_START_BYTE)
@@ -439,7 +414,7 @@ static bool usbReadByte(UsbPacket *packet, unsigned int *readSoFar, uint8_t d)
 }
 
 
-static bool parseSensors(UsbPacket *packet, Fingers *fingers, tactilesensors4::Sensor *SensorsData)
+static bool parseSensors(UsbPacket *packet, Fingers *fingers)
 {
     bool sawDynamic = false;
     bool errorFlag = false;
