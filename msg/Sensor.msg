@@ -1,7 +1,0 @@
-StaticData staticdata
-Dynamic dynamic
-Accelerometer accelerometer
-Gyroscope gyroscope
-Magnetometer magnetometer
-Quaternion quaternion
-EulerAngle eulerangle

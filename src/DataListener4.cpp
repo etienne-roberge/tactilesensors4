@@ -235,7 +235,7 @@ DataTypeV readCmdOptions(int nbArg, char **argv)
 
 void show_usage()
 {
-    std::cerr << "Usage: Datalistener4 <option(s)> \n"
+    std::cerr << "Usage: Datalistener4 <ID> <option(s)> \n"
               << "Options:\n"
               << "\t-h,--help\t\tShow this help message\n"
               << "\t-s,--static\t\tPrint static pressure data (default)\n"

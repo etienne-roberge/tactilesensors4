@@ -70,9 +70,9 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 ******************************************************************************************/
 
 #include <cstdint>
-#include "ros/ros.h"
+//#include "ros/ros.h"
+#include "Finger.h"
 #include "tactilesensors4/TactileSensors.h"
-#include "tactilesensors4/Sensor.h"
 #include "tactilesensors4/Accelerometer.h"
 #include "tactilesensors4/Dynamic.h"
 #include "tactilesensors4/EulerAngle.h"
@@ -80,7 +80,6 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "tactilesensors4/Magnetometer.h"
 #include "tactilesensors4/Quaternion.h"
 #include "tactilesensors4/StaticData.h"
-#include "Finger.h"
 #include <fcntl.h>      // File control definitions
 #include <termios.h>    // POSIX terminal control definitions
 #include <algorithm>
@@ -121,7 +120,12 @@ struct UsbPacket
 struct Fingers
 {
     int64_t timestamp;
-    Finger finger[FINGER_COUNT];
+    std::vector<std::unique_ptr<Finger>> finger;
+    Fingers()
+    {
+        finger.push_back(std::make_unique<Finger>(1));
+        finger.push_back(std::make_unique<Finger>(2));
+    }
 };
 
 //Function prototypes:
@@ -165,14 +169,6 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     ros::Rate loop_rate(1000);
     ros::ServiceServer TactileSensorService=n.advertiseService("Tactile_Sensors_Service", TactileSensorServiceCallback);
-    tactilesensors4::Sensor SensorsData;
-    tactilesensors4::Quaternion TheQuaternions;
-    ros::Publisher StaticData_pub = n.advertise<tactilesensors4::StaticData>("TactileSensor4/StaticData", 1000);
-    ros::Publisher Dynamic_pub = n.advertise<tactilesensors4::Dynamic>("TactileSensor4/Dynamic", 1000);
-    ros::Publisher Accelerometer_pub = n.advertise<tactilesensors4::Accelerometer>("TactileSensor4/Accelerometer",1000);
-    ros::Publisher EulerAngle_pub = n.advertise<tactilesensors4::EulerAngle>("TactileSensor4/EulerAngle",1000);
-    ros::Publisher Gyroscope_pub = n.advertise<tactilesensors4::Gyroscope>("TactileSensor4/Gyroscope",1000);
-    ros::Publisher Magnetometer_pub = n.advertise<tactilesensors4::Magnetometer>("TactileSensor4/Magnetometer",1000);
     // I decided not to publish the quaternions for now (since I'm not sure it would be useful for anyone...:
     //    ros::Publisher Quaternion = n.advertise<tactilesensors4::Quaternion>("TactileSensor4/Quaternion",1000);
 
@@ -194,7 +190,8 @@ int main(int argc, char **argv)
     if(!OpenAndConfigurePort(&USB,TheDevice)) return 1;
 
     // Gathered data
-    Fingers fingers = {0};
+    Fingers fingers = {};
+
 
     send.command=USB_COMMAND_AUTOSEND_SENSORS;
     send.data_length = 1;
@@ -213,53 +210,11 @@ int main(int argc, char **argv)
         {
             if (usbReadByte(&recv, &recvSoFar, receiveBuffer[i]))
             {
-                bool newSetOfData = parseSensors(&recv, &fingers);
-
-                // Many messages can arrive in the same millisecond, so let the data accumulate and store it only when a whole set is complete
-                if (newSetOfData)
-                {
-                    // We copy the dynamic values for both sensors:
-                    SensorsData.dynamic.data[0].value = fingers.finger[0].getDynamicTactile()[0];
-                    SensorsData.dynamic.data[1].value = fingers.finger[1].getDynamicTactile()[0];
-
-                    // Then we copy static values for both sensors:
-                    memcpy(&SensorsData.staticdata.taxels[0].values,fingers.finger[0].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[0].values));
-                    memcpy(&SensorsData.staticdata.taxels[1].values,fingers.finger[1].getStaticTactile(),sizeof(SensorsData.staticdata.taxels[1].values));
-
-                    // Then we copy accel values:
-                    memcpy(&SensorsData.accelerometer.data[0].values, fingers.finger[0].getAccelerometer(),sizeof(SensorsData.accelerometer.data[0].values));
-                    memcpy(&SensorsData.accelerometer.data[1].values, fingers.finger[1].getAccelerometer(),sizeof(SensorsData.accelerometer.data[1].values));
-
-                    // Then we copy gyro values:
-                    memcpy(&SensorsData.gyroscope.data[0].values, fingers.finger[0].getGyroscope(),sizeof(SensorsData.gyroscope.data[0].values));
-                    memcpy(&SensorsData.gyroscope.data[1].values, fingers.finger[1].getGyroscope(),sizeof(SensorsData.gyroscope.data[1].values));
-
-                    // Then we copy magnet values:
-                    memcpy(&SensorsData.magnetometer.data[0].values, fingers.finger[0].getMagnetometer(),sizeof(SensorsData.magnetometer.data[0].values));
-                    memcpy(&SensorsData.magnetometer.data[1].values, fingers.finger[1].getMagnetometer(),sizeof(SensorsData.magnetometer.data[1].values));
-
-                    fingers.finger[0].update();
-                    fingers.finger[1].update();
-
-                    // Then we copy magnet values:
-                    memcpy(&SensorsData.eulerangle.data[0].values, fingers.finger[0].getEuler(),sizeof(SensorsData.eulerangle.data[0].values));
-                    memcpy(&SensorsData.eulerangle.data[1].values, fingers.finger[1].getEuler(),sizeof(SensorsData.eulerangle.data[1].values));
-
-                    if (!StopSensorDataAcquisition)
-                    {
-                        // We publish everything:
-                        Dynamic_pub.publish(SensorsData.dynamic);
-                        StaticData_pub.publish(SensorsData.staticdata);
-                        Accelerometer_pub.publish(SensorsData.accelerometer);
-                        Gyroscope_pub.publish(SensorsData.gyroscope);
-                        Magnetometer_pub.publish(SensorsData.magnetometer);
-                        EulerAngle_pub.publish(SensorsData.eulerangle);
-                    }
-                }
+                parseSensors(&recv, &fingers);
             }
         }
+
         ros::spinOnce();    //Refresh publishing buffers
-        loop_rate.sleep();
     }
 
     // Stop auto-send message
@@ -427,7 +382,7 @@ static bool parseSensors(UsbPacket *packet, Fingers *fingers)
         uint8_t *sensorData = packet->data + i;
         unsigned int sensorDataBytes = packet->data_length - i;
 
-        i += fingers->finger[f].setNewSensorValue(sensorType, sensorData, sensorDataBytes, &errorFlag);
+        i += fingers->finger[f]->setNewSensorValue(sensorType, sensorData, sensorDataBytes, &errorFlag);
 
         if(errorFlag)
             break;

@@ -1,1 +1,1 @@
-Data3f[2] data
+float32[3] value
