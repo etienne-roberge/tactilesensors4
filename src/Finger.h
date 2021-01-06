@@ -7,6 +7,16 @@
 
 
 #include <cstdint>
+#include <ros/ros.h>
+#include <tactilesensors4/Quaternion.h>
+#include <tactilesensors4/Dynamic.h>
+#include <tactilesensors4/Accelerometer.h>
+#include <tactilesensors4/EulerAngle.h>
+#include <tactilesensors4/Magnetometer.h>
+#include <tactilesensors4/StaticData.h>
+#include <tactilesensors4/Gyroscope.h>
+#include <thread>
+#include <condition_variable>
 
 #define FINGER_STATIC_TACTILE_ROW 4
 #define FINGER_STATIC_TACTILE_COL 7
@@ -27,21 +37,14 @@ enum UsbSensorType
 class Finger {
 public:
     Finger();
+    Finger(int sensorId);
     virtual ~Finger();
 
     void update();
     int setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag);
 
-    const uint16_t *getStaticTactile() const;
-    const int16_t *getDynamicTactile() const;
-    const int16_t *getAccelerometer() const;
-    const int16_t *getGyroscope() const;
-    const int16_t *getMagnetometer() const;
-    const float *getQuaternion() const;
-    const float *getEuler() const;
-    int16_t getTemperature() const;
-
 private:
+    void runPublisher();
     void updateIMU();
     void initBias();
     void madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
@@ -58,11 +61,25 @@ private:
     float gyroBias[3] = {};
     int16_t magnet[3] = {};
     int16_t temperature;
-    float q[4] = {};
-    float euler[3] = {};
     bool initDone;
     int biasCalculationIteration;
     float norm_bias;
+
+    int sensorId;
+
+    tactilesensors4::Quaternion q;
+    tactilesensors4::Dynamic dynamic;
+    tactilesensors4::Accelerometer accelerometer;
+    tactilesensors4::EulerAngle eulerAngle;
+    tactilesensors4::Magnetometer magnetometer;
+    tactilesensors4::StaticData staticData;
+    tactilesensors4::Gyroscope gyroscope;
+
+    std::thread publisherThread;
+    std::condition_variable completeDataCondition;
+    std::mutex completeDataMutex;
+    std::mutex publishingMutex;
+    bool stopThread;
 
     static const float BETA;
     static const float SAMPLE_FREQ;

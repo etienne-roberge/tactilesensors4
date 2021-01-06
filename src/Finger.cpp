@@ -5,24 +5,82 @@
 #include <iostream>
 #include "Finger.h"
 #include <cmath>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 const float Finger::BETA = 0.1;
 const float Finger::SAMPLE_FREQ = 1000;
 const int Finger::BIAS_CALCULATION_ITERATIONS= 5000;
 const float Finger::ACCEL_RES = 2.0/32768.0; // Accelerometers MPU9250 set resolution
-const float Finger::GYRO_RES = 250.0/32768.0; //Gyroscope set resolution (250 Degrees-Per-Second)
+const float Finger::GYRO_RES = 250.0/32768.0; // Gyroscope set resolution (250 Degrees-Per-Second)
 
-Finger::Finger():
+Finger::Finger(int sensorId):
 temperature(0),
 initDone(false),
 biasCalculationIteration(0),
-norm_bias(0)
+norm_bias(0),
+sensorId(sensorId),
+stopThread(false)
 {
-    q[0] = 1.0;
+    q.value[0] = 1.0; //init quaternion
+
+    publisherThread = std::thread(&Finger::runPublisher, this);
 }
 
 Finger::~Finger()
 {
+    stopThread = true;
+    if (publisherThread.joinable())
+    {
+        completeDataCondition.notify_all();
+        publisherThread.join();
+    }
+}
+
+void Finger::runPublisher()
+{
+    ros::NodeHandlePtr node = boost::make_shared<ros::NodeHandle>();
+    ros::Rate loop_rate(1000);
+    ros::Publisher staticData_pub = node->advertise<tactilesensors4::StaticData>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/StaticData", 1000);
+    ros::Publisher dynamic_pub = node->advertise<tactilesensors4::Dynamic>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/Dynamic", 1000);
+    ros::Publisher accelerometer_pub = node->advertise<tactilesensors4::Accelerometer>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/Accelerometer",1000);
+    ros::Publisher eulerAngle_pub = node->advertise<tactilesensors4::EulerAngle>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/EulerAngle",1000);
+    ros::Publisher gyroscope_pub = node->advertise<tactilesensors4::Gyroscope>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/Gyroscope",1000);
+    ros::Publisher magnetometer_pub = node->advertise<tactilesensors4::Magnetometer>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/Magnetometer",1000);
+    ros::Publisher quaternion_pub = node->advertise<tactilesensors4::Quaternion>("TactileSensor4/Sensor" + std::to_string(sensorId) + "/Quaternion",1000);
+
+    while (ros::ok() && !stopThread)
+    {
+        std::unique_lock<std::mutex> lock(completeDataMutex);
+
+        if(completeDataCondition.wait_until(lock, std::chrono::system_clock::now() + 500ms) != std::cv_status::timeout)
+        {
+            if(stopThread) break;
+
+            std::unique_lock<std::mutex> publishLock(publishingMutex);
+
+            update();
+
+            dynamic_pub.publish(dynamic);
+            staticData_pub.publish(staticData);
+            accelerometer_pub.publish(accelerometer);
+            gyroscope_pub.publish(gyroscope);
+            magnetometer_pub.publish(magnetometer);
+
+            if(initDone)
+            {
+                eulerAngle_pub.publish(eulerAngle);
+                quaternion_pub.publish(q);
+            }
+
+            loop_rate.sleep();
+        }
+        else
+        {
+            std::cerr << "No data received for Sensor" << sensorId << "..." << std::endl;
+        }
+    }
 }
 
 void Finger::update()
@@ -76,40 +134,49 @@ void Finger::updateIMU()
 {
     //Write the accel and gyro data to the topic Struct with the computed sensor biases
     float ax, ay, az, gx, gy, gz;
-    ax = accel[0] * ACCEL_RES - accelBias[0];
-    ay = accel[1] * ACCEL_RES - accelBias[1];
-    az = accel[2] * ACCEL_RES - accelBias[2];
+    ax = accelerometer.value[0] * ACCEL_RES - accelBias[0];
+    ay = accelerometer.value[1] * ACCEL_RES - accelBias[1];
+    az = accelerometer.value[2] * ACCEL_RES - accelBias[2];
 
-    gx = gyro[0] * GYRO_RES - gyroBias[0];
-    gy = gyro[1] * GYRO_RES - gyroBias[1];
-    gz = gyro[2] * GYRO_RES - gyroBias[2];
+    gx = gyroscope.value[0] * GYRO_RES - gyroBias[0];
+    gy = gyroscope.value[1] * GYRO_RES - gyroBias[1];
+    gz = gyroscope.value[2] * GYRO_RES - gyroBias[2];
 
     madgwickAHRSUpdateIMU(gx * M_PI / 180, gy * M_PI / 180, gz * M_PI / 180, ax, ay, az); // 6-axis IMU
 
-    euler[0] = atan2(2.0f*(q[0]*q[1]+q[2]*q[3]),q[0]*q[0]-q[1]*q[1]-q[2]*q[2]+q[3]*q[3])*180/M_PI;
-    euler[1] = -asin(2.0f*(q[1]*q[3]-q[0]*q[2]))*180/M_PI;
-    euler[2] = atan2(2.0f*(q[1]*q[2]+q[0]*q[3]),q[0]*q[0]+q[1]*q[1]-q[2]*q[2]-q[3]*q[3])*180/M_PI;
+    eulerAngle.value[0] = atan2(2.0f*(q.value[0]*q.value[1]+q.value[2]*q.value[3]),q.value[0]*q.value[0]-q.value[1]*q.value[1]-q.value[2]*q.value[2]+q.value[3]*q.value[3])*180/M_PI;
+    eulerAngle.value[1] = -asin(2.0f*(q.value[1]*q.value[3]-q.value[0]*q.value[2]))*180/M_PI;
+    eulerAngle.value[2] = atan2(2.0f*(q.value[1]*q.value[2]+q.value[0]*q.value[3]),q.value[0]*q.value[0]+q.value[1]*q.value[1]-q.value[2]*q.value[2]-q.value[3]*q.value[3])*180/M_PI;
 }
 
 int Finger::setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag)
 {
     int byteRead;
+
+    std::unique_lock<std::mutex> publishLock(publishingMutex);
+
     switch (sensorType)
     {
         case USB_SENSOR_TYPE_DYNAMIC_TACTILE:
             byteRead = extractUint16((uint16_t *)dynamicTactile, FINGER_DYNAMIC_TACTILE_COUNT, data, size);
+            dynamic.value = dynamicTactile[0];
+            completeDataCondition.notify_all(); //we received all the data! We can publish
             break;
         case USB_SENSOR_TYPE_STATIC_TACTILE:
             byteRead = extractUint16(staticTactile, FINGER_STATIC_TACTILE_COUNT, data, size);
+            std::copy(std::begin(staticTactile), std::end(staticTactile), std::begin(staticData.value));
             break;
         case USB_SENSOR_TYPE_ACCELEROMETER:
             byteRead = extractUint16((uint16_t *)accel, 3, data, size);
+            std::copy(std::begin(accel), std::end(accel), std::begin(accelerometer.value));
             break;
         case USB_SENSOR_TYPE_GYROSCOPE:
             byteRead = extractUint16((uint16_t *)gyro, 3, data, size);
+            std::copy(std::begin(gyro), std::end(gyro), std::begin(gyroscope.value));
             break;
         case USB_SENSOR_TYPE_MAGNETOMETER:
             byteRead = extractUint16((uint16_t *)magnet, 3, data, size);
+            std::copy(std::begin(magnet), std::end(magnet), std::begin(magnetometer.value));
             break;
         case USB_SENSOR_TYPE_TEMPERATURE:
             byteRead = extractUint16((uint16_t *)&temperature, 1, data, size);
@@ -136,10 +203,10 @@ void Finger::madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float
     float _2q0, _2q1, _2q2, _2q3, _4q0, _4q1, _4q2 ,_8q1, _8q2, q0q0, q1q1, q2q2, q3q3;
 
     // Rate of change of quat from gyro
-    qDot1 = 0.5f * (-q[1] * gx - q[2] * gy - q[3] * gz);
-    qDot2 = 0.5f * (q[0] * gx + q[2] * gz - q[3] * gy);
-    qDot3 = 0.5f * (q[0] * gy - q[1] * gz + q[3] * gx);
-    qDot4 = 0.5f * (q[0] * gz + q[1] * gy - q[2] * gx);
+    qDot1 = 0.5f * (-q.value[1] * gx - q.value[2] * gy - q.value[3] * gz);
+    qDot2 = 0.5f * (q.value[0] * gx + q.value[2] * gz - q.value[3] * gy);
+    qDot3 = 0.5f * (q.value[0] * gy - q.value[1] * gz + q.value[3] * gx);
+    qDot4 = 0.5f * (q.value[0] * gz + q.value[1] * gy - q.value[2] * gx);
 
     // Compute feedback only if accel measurement valid (avoids NaN in accel normalisation)
     if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
@@ -151,25 +218,25 @@ void Finger::madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float
         az *= recipNorm;
 
         // Auxiliary variables to avoid repeated arithmetic
-        _2q0 = 2.0f * q[0];
-        _2q1 = 2.0f * q[1];
-        _2q2 = 2.0f * q[2];
-        _2q3 = 2.0f * q[3];
-        _4q0 = 4.0f * q[0];
-        _4q1 = 4.0f * q[1];
-        _4q2 = 4.0f * q[2];
-        _8q1 = 8.0f * q[1];
-        _8q2 = 8.0f * q[2];
-        q0q0 = q[0] * q[0];
-        q1q1 = q[1] * q[1];
-        q2q2 = q[2] * q[2];
-        q3q3 = q[3] * q[3];
+        _2q0 = 2.0f * q.value[0];
+        _2q1 = 2.0f * q.value[1];
+        _2q2 = 2.0f * q.value[2];
+        _2q3 = 2.0f * q.value[3];
+        _4q0 = 4.0f * q.value[0];
+        _4q1 = 4.0f * q.value[1];
+        _4q2 = 4.0f * q.value[2];
+        _8q1 = 8.0f * q.value[1];
+        _8q2 = 8.0f * q.value[2];
+        q0q0 = q.value[0] * q.value[0];
+        q1q1 = q.value[1] * q.value[1];
+        q2q2 = q.value[2] * q.value[2];
+        q3q3 = q.value[3] * q.value[3];
 
         // Gradient decent algorithm corrective step
         s0 = _4q0 * q2q2 + _2q2 * ax + _4q0 * q1q1 - _2q1 * ay;
-        s1 = _4q1 * q3q3 - _2q3 * ax + 4.0f * q0q0 * q[1] - _2q0 * ay - _4q1 + _8q1 * q1q1 + _8q1 * q2q2 + _4q1 * az;
-        s2 = 4.0f * q0q0 * q[2] + _2q0 * ax + _4q2 * q3q3 - _2q3 * ay - _4q2 + _8q2 * q1q1 + _8q2 * q2q2 + _4q2 * az;
-        s3 = 4.0f * q1q1 * q[3] - _2q1 * ax + 4.0f * q2q2 * q[3] - _2q2 * ay;
+        s1 = _4q1 * q3q3 - _2q3 * ax + 4.0f * q0q0 * q.value[1] - _2q0 * ay - _4q1 + _8q1 * q1q1 + _8q1 * q2q2 + _4q1 * az;
+        s2 = 4.0f * q0q0 * q.value[2] + _2q0 * ax + _4q2 * q3q3 - _2q3 * ay - _4q2 + _8q2 * q1q1 + _8q2 * q2q2 + _4q2 * az;
+        s3 = 4.0f * q1q1 * q.value[3] - _2q1 * ax + 4.0f * q2q2 * q.value[3] - _2q2 * ay;
         recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3); // normalise step magnitude
         s0 *= recipNorm;
         s1 *= recipNorm;
@@ -184,17 +251,17 @@ void Finger::madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float
     }
 
     // Integrate rate of change of quat to yield quat
-    q[0] += qDot1 * (1.0f / SAMPLE_FREQ);
-    q[1] += qDot2 * (1.0f / SAMPLE_FREQ);
-    q[2] += qDot3 * (1.0f / SAMPLE_FREQ);
-    q[3] += qDot4 * (1.0f / SAMPLE_FREQ);
+    q.value[0] += qDot1 * (1.0f / SAMPLE_FREQ);
+    q.value[1] += qDot2 * (1.0f / SAMPLE_FREQ);
+    q.value[2] += qDot3 * (1.0f / SAMPLE_FREQ);
+    q.value[3] += qDot4 * (1.0f / SAMPLE_FREQ);
 
     // Normalise quat
-    recipNorm = invSqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-    q[0] *= recipNorm;
-    q[1] *= recipNorm;
-    q[2] *= recipNorm;
-    q[3] *= recipNorm;
+    recipNorm = invSqrt(q.value[0] * q.value[0] + q.value[1] * q.value[1] + q.value[2] * q.value[2] + q.value[3] * q.value[3]);
+    q.value[0] *= recipNorm;
+    q.value[1] *= recipNorm;
+    q.value[2] *= recipNorm;
+    q.value[3] *= recipNorm;
 }
 
 //---------------------------------------------------------------------------------------------------
@@ -227,44 +294,4 @@ uint8_t Finger::extractUint16(uint16_t *to, uint16_t toCount, uint8_t *data, uns
 
     // Return number of bytes read
     return cur * 2;
-}
-
-const uint16_t *Finger::getStaticTactile() const
-{
-    return staticTactile;
-}
-
-const int16_t *Finger::getDynamicTactile() const
-{
-    return dynamicTactile;
-}
-
-const int16_t *Finger::getAccelerometer() const
-{
-    return accel;
-}
-
-const int16_t *Finger::getGyroscope() const
-{
-    return gyro;
-}
-
-const int16_t *Finger::getMagnetometer() const
-{
-    return magnet;
-}
-
-int16_t Finger::getTemperature() const
-{
-    return temperature;
-}
-
-const float *Finger::getQuaternion() const
-{
-    return q;
-}
-
-const float *Finger::getEuler() const
-{
-    return euler;
 }

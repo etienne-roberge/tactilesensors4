@@ -19,12 +19,6 @@ add_message_files(
    Magnetometer.msg
    Quaternion.msg
    EulerAngle.msg
-   Taxels.msg
-   Data1.msg
-   Data3.msg
-   Data3f.msg
-   Data4f.msg
-   Sensor.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -48,15 +42,17 @@ link_directories(/usr/local/lib)
 find_package(PkgConfig REQUIRED)
 include_directories(include ${catkin_INCLUDE_DIRS})
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 SET(CMAKE_CXX_FLAGS "-ggdb -O3 -fPIC -std=c++0x -march=native -mno-avx") #jk added
 
 add_executable(PollData4 src/PollData4.cpp src/Finger.cpp src/Finger.h)
 target_link_libraries(PollData4 ${catkin_LIBRARIES})
 add_dependencies(PollData4 tactilesensors4_generate_messages_cpp)
 
-add_executable(DataListener4 src/DataListener4.cpp)
-target_link_libraries(DataListener4 ${catkin_LIBRARIES})
-add_dependencies(DataListener4 tactilesensors4_generate_messages_cpp)
+#add_executable(DataListener4 src/DataListener4.cpp)
+#target_link_libraries(DataListener4 ${catkin_LIBRARIES})
+#add_dependencies(DataListener4 tactilesensors4_generate_messages_cpp)
 
 ## Mark cpp header files for installation
 install(DIRECTORY include/${PROJECT_NAME}/

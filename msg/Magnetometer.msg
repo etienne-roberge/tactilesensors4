@@ -1,1 +1,1 @@
-Data3[2] data
+int16[3] value
