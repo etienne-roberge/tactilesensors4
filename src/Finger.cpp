@@ -9,20 +9,23 @@
 
 using namespace std::chrono_literals;
 
+// Initialize static member of finger count
+int Finger::fingerCount = 0;
+
 const float Finger::BETA = 0.1;
 const float Finger::SAMPLE_FREQ = 1000;
 const int Finger::BIAS_CALCULATION_ITERATIONS= 5000;
 const float Finger::ACCEL_RES = 2.0/32768.0; // Accelerometers MPU9250 set resolution
 const float Finger::GYRO_RES = 250.0/32768.0; // Gyroscope set resolution (250 Degrees-Per-Second)
 
-Finger::Finger(int sensorId):
+Finger::Finger():
 temperature(0),
 initDone(false),
 biasCalculationIteration(0),
 norm_bias(0),
-sensorId(sensorId),
 stopThread(false)
 {
+    sensorId = ++fingerCount;
     q.value[0] = 1.0; //init quaternion
 
     publisherThread = std::thread(&Finger::runPublisher, this);

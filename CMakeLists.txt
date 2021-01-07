@@ -46,7 +46,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 SET(CMAKE_CXX_FLAGS "-ggdb -O3 -fPIC -std=c++0x -march=native -mno-avx") #jk added
 
-add_executable(PollData4 src/PollData4.cpp src/Finger.cpp src/Finger.h)
+add_executable(PollData4 src/PollData4.cpp src/Finger.cpp src/Finger.h src/Communication.cpp src/Communication.h)
 target_link_libraries(PollData4 ${catkin_LIBRARIES})
 add_dependencies(PollData4 tactilesensors4_generate_messages_cpp)
 

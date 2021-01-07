@@ -37,7 +37,6 @@ enum UsbSensorType
 class Finger {
 public:
     Finger();
-    Finger(int sensorId);
     virtual ~Finger();
 
     void update();
@@ -86,6 +85,8 @@ private:
     static const int BIAS_CALCULATION_ITERATIONS; // Number of samples we want to collect to compute IMU biases
     static const float ACCEL_RES;
     static const float GYRO_RES;
+
+    static int fingerCount;
 };
 
 
