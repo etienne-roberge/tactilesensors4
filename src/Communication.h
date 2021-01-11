@@ -1,7 +1,3 @@
-//
-// Created by etienne on 2021-01-07.
-//
-
 #ifndef TACTILESENSORS4_COMMUNICATION_H
 #define TACTILESENSORS4_COMMUNICATION_H
 

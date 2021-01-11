@@ -1,7 +1,3 @@
-//
-// Created by etienne on 2021-01-07.
-//
-
 #include "Communication.h"
 #include <fcntl.h>      // File control definitions
 #include <termios.h>    // POSIX terminal control definitions
@@ -11,6 +7,14 @@
 #include <iostream>
 #include <cstring>
 
+/****************************************************************************************
+//  Communication::Communication()
+//  Brief:  Communication construtor tries to open the specified port to the sensor. If
+//          successful, create 2 finger object and automatically start communication
+//          thread with the specified.
+//  Param:
+//        -deviceName:    the name of the sensor (ex: /dev/ttyACM0)
+****************************************************************************************/
 Communication::Communication(const std::string* deviceName):
     USB(-1),
     isEnabled(true)
@@ -28,6 +32,10 @@ Communication::Communication(const std::string* deviceName):
     }
 }
 
+/****************************************************************************************
+//  Communication::~Communication()
+//  Brief:  Stops comm thread before exit
+****************************************************************************************/
 Communication::~Communication()
 {
     stopThread = true;
@@ -38,6 +46,12 @@ Communication::~Communication()
     }
 }
 
+/****************************************************************************************
+//  Communication::enableComm(bool enable)
+//  Brief:  Use to pause the comm thread
+//  Param:
+//      -enable: enable or not the comm
+****************************************************************************************/
 void Communication::enableComm(bool enable)
 {
     isEnabled = enable;
@@ -47,6 +61,12 @@ void Communication::enableComm(bool enable)
     }
 }
 
+/****************************************************************************************
+//  Communication::run()
+//  Brief:  Main thread of the Communication object. Use to read the packet streamed by
+//          the sensor. When the packet are parsed sucessfully, send the new info the
+//          the respective finger object.
+****************************************************************************************/
 void Communication::run()
 {
     stopThread = false;
@@ -105,15 +125,6 @@ void Communication::run()
 //                          device.
 //              char const * TheDevice: The string of the device we want to open.
 //                          (e.g. /dev/ttyACM0).
-//              int DesiredVMIN: is an integer used to determine how many byte we need to
-//                          receive before we consider the message/line has ended. If set
-//                          to 0, read will be non-blocking. See Termios documentation
-//                          for more details.
-//              int DesiredVTIME: is an integer representing the number of deciseconds
-//                          before we consider that a timeout has occurred. If set to 0,
-//                          then we will do pure data polling and usually, in this latter
-//                          case, a timeout loop still need to be coded manually. See the
-//                          Termios documentation for more details.
 ****************************************************************************************/
 bool Communication::OpenAndConfigurePort(int *USB, char const * TheDevice)
 {

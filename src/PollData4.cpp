@@ -5,26 +5,16 @@
 //Affiliations: Laboratoire de commande et de robotique (École de technologie supérieure)
 //
 //Description:  PollData4.cpp - Source code of the ros package responsible for extracting
-//              and publishing the static, dynamic and IMU data from tactile sensors. The
-//              results are then published on /TactileSensor3/StaticData ,
-//              /TactileSensor3/DynamicData or /TactileSensor3/DynamicAndIMUData
-//              respectively. The static data are published in format
-//              std_msgs::Int32MultiArray while dynamic and imu data are published in
-//              format std_msgs::Float64.
+//              and publishing the static, dynamic and IMU data from tactile sensors.
 //
 //Synopsis:
-rosrun tactilesensors PollData [-device PATH_TO_DEV]
+//rosrun tactilesensors PollData [-device PATH_TO_DEV]
 //
 //              Where [OPTIONS]:
 //                  -device PATH_TO_DEV is the path to the device (Note that by default
 //                  "/dev/ttyACM0" is considered to be the proper path.
-//                  -data static | dynamic | dyna+imu' specifies if we want to extract
-//                  "static" data, "dynamic" data or "dynamic" data along with the "imu"
-//                  data. By default, this node will extract static data.
 //
-//Comments:     1) Magnetometers are currently unsupported, their values are thus set to
-//              0 by default.
-//              2) The First time one queries the imu(s), please be aware that
+//Comments:     1) The First time one queries the imu(s), please be aware that
 //              "BIASCalculationIterations" milliseconds of waiting time will be
 //              required. "BIASCalculationIterations" is a global variable defined just
 //              below.
@@ -32,12 +22,10 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 //              still, i.e.: the sensors should not be moving / vibrating at all.
 //
 //
-//Examples:     1)  rosrun tactilesensors PollData -sensor 1,2,5
-//              -This will publish static data from sensors 1,2 and 5 to the topic
-//              /TactileSensor/StaticData
-//              2)  rosrun tactilesensors PollData -sensors 3:7 -data dynamic
-//              -This will publish dynamic data from sensors 3, 4, 5, 6 and 7 to the
-//              topic /TactileSensor/DynamicData
+//Examples:     1)  rosrun tactilesensors PollData -device /dev/ttyACM0
+//              -This will publish datas from sensor at /dev/ttyACM0
+//              2)  rosrun tactilesensors PollData -device /dev/ttyACM0 /dev/ttyACM2
+//              -This will publish datas from sensor at /dev/ttyACM0 and /dev/ttyACM2
 //
 //______________________________________________________________________________________
 //Version 1.0 : April 2nd 2015 - Initial release

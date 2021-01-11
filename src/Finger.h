@@ -1,7 +1,3 @@
-//
-// Created by etienne on 2020-12-22.
-//
-
 #ifndef TACTILESENSORS4_FINGER_H
 #define TACTILESENSORS4_FINGER_H
 
@@ -39,7 +35,6 @@ public:
     Finger();
     virtual ~Finger();
 
-    void update();
     int setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag);
 
 private:

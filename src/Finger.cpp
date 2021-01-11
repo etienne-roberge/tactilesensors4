@@ -1,7 +1,3 @@
-//
-// Created by etienne on 2020-12-22.
-//
-
 #include <iostream>
 #include "Finger.h"
 #include <cmath>
@@ -14,10 +10,15 @@ int Finger::fingerCount = 0;
 
 const float Finger::BETA = 0.1;
 const float Finger::SAMPLE_FREQ = 1000;
-const int Finger::BIAS_CALCULATION_ITERATIONS= 5000;
+const int Finger::BIAS_CALCULATION_ITERATIONS = 5000;
 const float Finger::ACCEL_RES = 2.0/32768.0; // Accelerometers MPU9250 set resolution
 const float Finger::GYRO_RES = 250.0/32768.0; // Gyroscope set resolution (250 Degrees-Per-Second)
 
+/****************************************************************************************
+//  Finger::Finger()
+//  Brief:  Finger construtor will automatically start publisher thread. It will also
+//          automatically increment the sensor id for publishing with a unique name.
+****************************************************************************************/
 Finger::Finger():
 temperature(0),
 initDone(false),
@@ -31,6 +32,10 @@ stopThread(false)
     publisherThread = std::thread(&Finger::runPublisher, this);
 }
 
+/****************************************************************************************
+//  Finger::~Finger()
+//  Brief:  Stops publisher thread before exit
+****************************************************************************************/
 Finger::~Finger()
 {
     stopThread = true;
@@ -41,6 +46,12 @@ Finger::~Finger()
     }
 }
 
+/****************************************************************************************
+//  Finger::runPublisher()
+//  Brief:  Main thread of the finger object. Use to publish the sensor data to ros node.
+//          When a complete set of data is received from the sensor, the thread updates
+//          the quaternions and euler value before publishing
+****************************************************************************************/
 void Finger::runPublisher()
 {
     ros::NodeHandlePtr node = boost::make_shared<ros::NodeHandle>();
@@ -63,7 +74,7 @@ void Finger::runPublisher()
 
             std::unique_lock<std::mutex> publishLock(publishingMutex);
 
-            update();
+            updateIMU();
 
             dynamic_pub.publish(dynamic);
             staticData_pub.publish(staticData);
@@ -86,11 +97,32 @@ void Finger::runPublisher()
     }
 }
 
-void Finger::update()
+/****************************************************************************************
+//  Finger::updateIMU()
+//  Brief:  Using the accel and gyro from the sensor, calculate the the new quaternion
+//          euler angles values. If the initialisation of the sensor is not finished,
+//          calculate the bias instead.
+****************************************************************************************/
+void Finger::updateIMU()
 {
     if(initDone)
     {
-        updateIMU();
+        //Write the accel and gyro data to the topic Struct with the computed sensor biases
+        float ax, ay, az, gx, gy, gz;
+        ax = accelerometer.value[0] * ACCEL_RES - accelBias[0];
+        ay = accelerometer.value[1] * ACCEL_RES - accelBias[1];
+        az = accelerometer.value[2] * ACCEL_RES - accelBias[2];
+
+        gx = gyroscope.value[0] * GYRO_RES - gyroBias[0];
+        gy = gyroscope.value[1] * GYRO_RES - gyroBias[1];
+        gz = gyroscope.value[2] * GYRO_RES - gyroBias[2];
+
+        madgwickAHRSUpdateIMU(gx * M_PI / 180, gy * M_PI / 180, gz * M_PI / 180, ax, ay, az); // 6-axis IMU
+
+        eulerAngle.value[0] = atan2(2.0f*(q.value[0]*q.value[1]+q.value[2]*q.value[3]),q.value[0]*q.value[0]-q.value[1]*q.value[1]-q.value[2]*q.value[2]+q.value[3]*q.value[3])*180/M_PI;
+        eulerAngle.value[1] = -asin(2.0f*(q.value[1]*q.value[3]-q.value[0]*q.value[2]))*180/M_PI;
+        eulerAngle.value[2] = atan2(2.0f*(q.value[1]*q.value[2]+q.value[0]*q.value[3]),q.value[0]*q.value[0]+q.value[1]*q.value[1]-q.value[2]*q.value[2]-q.value[3]*q.value[3])*180/M_PI;
+
     }
     else
     {
@@ -98,6 +130,11 @@ void Finger::update()
     }
 }
 
+/****************************************************************************************
+//  Finger::initBias()
+//  Brief:  Calculate the bias for the gyro and accel for the first
+//          BIAS_CALCULATION_ITERATIONS at start.
+****************************************************************************************/
 void Finger::initBias()
 {
     if(biasCalculationIteration < BIAS_CALCULATION_ITERATIONS)
@@ -132,26 +169,18 @@ void Finger::initBias()
     }
 }
 
-
-void Finger::updateIMU()
-{
-    //Write the accel and gyro data to the topic Struct with the computed sensor biases
-    float ax, ay, az, gx, gy, gz;
-    ax = accelerometer.value[0] * ACCEL_RES - accelBias[0];
-    ay = accelerometer.value[1] * ACCEL_RES - accelBias[1];
-    az = accelerometer.value[2] * ACCEL_RES - accelBias[2];
-
-    gx = gyroscope.value[0] * GYRO_RES - gyroBias[0];
-    gy = gyroscope.value[1] * GYRO_RES - gyroBias[1];
-    gz = gyroscope.value[2] * GYRO_RES - gyroBias[2];
-
-    madgwickAHRSUpdateIMU(gx * M_PI / 180, gy * M_PI / 180, gz * M_PI / 180, ax, ay, az); // 6-axis IMU
-
-    eulerAngle.value[0] = atan2(2.0f*(q.value[0]*q.value[1]+q.value[2]*q.value[3]),q.value[0]*q.value[0]-q.value[1]*q.value[1]-q.value[2]*q.value[2]+q.value[3]*q.value[3])*180/M_PI;
-    eulerAngle.value[1] = -asin(2.0f*(q.value[1]*q.value[3]-q.value[0]*q.value[2]))*180/M_PI;
-    eulerAngle.value[2] = atan2(2.0f*(q.value[1]*q.value[2]+q.value[0]*q.value[3]),q.value[0]*q.value[0]+q.value[1]*q.value[1]-q.value[2]*q.value[2]-q.value[3]*q.value[3])*180/M_PI;
-}
-
+/****************************************************************************************
+//  Finger::setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag)
+//  Brief:  updates the sensor values. Call the publishing thread when USB_SENSOR_TYPE_DYNAMIC_TACTILE
+//          is seen.
+//  Param:
+//     - sensorType:   the sensor data type as specified in enum UsbSensorType.
+//     - data:         the raw data from sensor
+//     - size:         size of data
+//     - error:        error flag used to return error
+//
+//  Return: The number of byte read
+****************************************************************************************/
 int Finger::setNewSensorValue(int sensorType, uint8_t *data, unsigned int size, bool* errorFlag)
 {
     int byteRead;
