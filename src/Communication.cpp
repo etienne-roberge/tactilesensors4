@@ -12,7 +12,8 @@
 #include <cstring>
 
 Communication::Communication(const std::string* deviceName):
-    USB(-1)
+    USB(-1),
+    isEnabled(true)
 {
     if(OpenAndConfigurePort(&USB,deviceName->c_str()))
     {
@@ -32,7 +33,17 @@ Communication::~Communication()
     stopThread = true;
     if (comThread.joinable())
     {
+        enableCondition.notify_all();
         comThread.join();
+    }
+}
+
+void Communication::enableComm(bool enable)
+{
+    isEnabled = enable;
+    if(isEnabled)
+    {
+        enableCondition.notify_all();
     }
 }
 
@@ -50,9 +61,17 @@ void Communication::run()
     unsigned int recvSoFar = 0;
     std::vector<char> receiveBuffer(4096);
 
+    std::unique_lock<std::mutex> lock(enableMutex);
+
     //Now we enter the ros loop where we will acquire and publish data
     while (!stopThread)
     {
+        if(!isEnabled)
+        {
+            enableCondition.wait(lock);
+            continue;
+        }
+
         //Read the answer, i.e. the bytes received from the sensor:
         n_read = read(USB, receiveBuffer.data(), receiveBuffer.size());
 

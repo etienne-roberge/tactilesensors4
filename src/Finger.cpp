@@ -282,7 +282,7 @@ float Finger::invSqrt(float x)
     return y;
 }
 
-inline uint16_t Finger::parseBigEndian2(uint8_t *data)
+inline uint16_t Finger::parseBigEndian2(const uint8_t *data)
 {
     return (uint16_t)data[0] << 8 | data[1];
 }

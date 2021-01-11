@@ -49,7 +49,7 @@ private:
     void madgwickAHRSUpdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
 
     static uint8_t extractUint16(uint16_t *to, uint16_t toCount, uint8_t *data, unsigned int size);
-    static inline uint16_t parseBigEndian2(uint8_t *data);
+    static inline uint16_t parseBigEndian2(const uint8_t *data);
     static float invSqrt(float x);
 
     uint16_t staticTactile[FINGER_STATIC_TACTILE_COUNT] = {};

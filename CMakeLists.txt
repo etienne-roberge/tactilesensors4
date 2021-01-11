@@ -50,10 +50,6 @@ add_executable(PollData4 src/PollData4.cpp src/Finger.cpp src/Finger.h src/Commu
 target_link_libraries(PollData4 ${catkin_LIBRARIES})
 add_dependencies(PollData4 tactilesensors4_generate_messages_cpp)
 
-#add_executable(DataListener4 src/DataListener4.cpp)
-#target_link_libraries(DataListener4 ${catkin_LIBRARIES})
-#add_dependencies(DataListener4 tactilesensors4_generate_messages_cpp)
-
 ## Mark cpp header files for installation
 install(DIRECTORY include/${PROJECT_NAME}/
         DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}

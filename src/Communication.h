@@ -40,6 +40,8 @@ public:
 
     virtual ~Communication();
 
+    void enableComm(bool enable);
+
 private:
     void run();
     static bool OpenAndConfigurePort(int *USB, char const *TheDevice);
@@ -53,7 +55,10 @@ private:
     int USB;
 
     std::thread comThread;
-    bool stopThread{};
+    std::condition_variable enableCondition;
+    std::mutex enableMutex;
+    bool stopThread;
+    bool isEnabled;
 
 };
 

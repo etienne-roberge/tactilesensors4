@@ -29,7 +29,7 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 //              required. "BIASCalculationIterations" is a global variable defined just
 //              below.
 //              3) During the biases calculations, it is mandatory that the imus remain
-//              still, i.e.: the sensors sould not be moving / vibrating at all.
+//              still, i.e.: the sensors should not be moving / vibrating at all.
 //
 //
 //Examples:     1)  rosrun tactilesensors PollData -sensor 1,2,5
@@ -75,15 +75,16 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include <algorithm>
 #include <unistd.h>
 
+#define DEVICE_OPTION "-device"
+
 //Using std namespace
 using namespace std;
 
-//Global Variables:
-bool StopSensorDataAcquisition=false;
-
 //Function prototypes:
 bool cmdOptionExists(char** begin, char** end, const string& option);
-char* getCmdOption(char ** begin, char ** end, const string & option);
+std::vector<std::string> getDevicesOption(char ** begin, char ** end, const string& option);
+
+std::vector<std::unique_ptr<Communication>> commList;
 
 //Callbacks:
 bool TactileSensorServiceCallback(tactilesensors4::TactileSensors::Request  &req, tactilesensors4::TactileSensors::Response &res)
@@ -91,13 +92,20 @@ bool TactileSensorServiceCallback(tactilesensors4::TactileSensors::Request  &req
     ROS_INFO("The Tactile Sensors Service has received a request: [%s]",req.Request.data());
     if(strcmp(req.Request.data(),"start")==0 || strcmp(req.Request.data(),"Start")==0)
     {
-        StopSensorDataAcquisition=false;
+        for(auto &&comm : commList)
+        {
+            comm.get()->enableComm(true);
+        }
+
         res.Response=true;
         return true;
     }
     else if(strcmp(req.Request.data(),"stop")==0 || strcmp(req.Request.data(),"Stop")==0)
     {
-        StopSensorDataAcquisition=true;
+        for(auto &&comm : commList)
+        {
+            comm.get()->enableComm(false);
+        }
         res.Response=true;
         return true;
     }
@@ -115,21 +123,28 @@ int main(int argc, char **argv)
     //Variable declarations:
     ros::init(argc, argv, "PollData");
     ros::NodeHandle n;
-    ros::Rate loop_rate(1000);
     ros::ServiceServer TactileSensorService=n.advertiseService("Tactile_Sensors_Service", TactileSensorServiceCallback);
 
-    std::string TheDevice = "/dev/ttyACM0"; // By default, the device descriptor is set to "/dev/ttyACM0"
+    std::vector<std::string> devices;
 
-    if(cmdOptionExists(argv, argv+argc, "-device"))
+    if(cmdOptionExists(argv, argv+argc, DEVICE_OPTION))
     {
-        char * filename = getCmdOption(argv, argv + argc, "-device");
-        if (filename)
+        devices = getDevicesOption(argv, argv + argc, DEVICE_OPTION);
+        if(devices.empty())
         {
-            TheDevice=filename;
+            std::cout << "no devices specified!" << std::endl;
+            return 1;
         }
     }
+    else
+    {
+        devices.emplace_back("/dev/ttyACM0"); // By default, the device descriptor is set to "/dev/ttyACM0"
+    }
 
-    Communication cc(&TheDevice);
+    for(auto name : devices)
+    {
+        commList.emplace_back(std::make_unique<Communication>(&name));
+    }
 
     //Now we enter the ros loop where we will acquire and publish data
     if (ros::ok())
@@ -154,19 +169,20 @@ bool cmdOptionExists(char** begin, char** end, const string& option)
 }
 
 /****************************************************************************************
-//Function: getCmdOption
+//Function: getDevicesOption
 //
 //Description:  This function check a string starting at **begin up to **end and tries
 //              to find the string defined by the argument &option. If it finds it, then
-//              it returns a pointer pointing just after the string that was found.
+//              it returns all the arguments after the options
 //
 ****************************************************************************************/
-char* getCmdOption(char ** begin, char ** end, const string & option)
+std::vector<std::string> getDevicesOption(char ** begin, char ** end, const string& option)
 {
+    std::vector<std::string> devices;
     char ** itr = find(begin, end, option);
-    if (itr != end && ++itr != end)
+    while (itr != end && ++itr != end)
     {
-        return *itr;
+        devices.emplace_back(*itr);
     }
-    return nullptr;
+    return devices;
 }
